@@ -1,0 +1,7 @@
+*.idea/*
+*.png
+*.bmp
+*.bc
+*.BWS
+*.pyc
+creds.cmd
