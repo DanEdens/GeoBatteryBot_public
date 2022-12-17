@@ -4,11 +4,12 @@ import os
 import shutil
 import subprocess
 import sys
-from webbrowser import open
+import webbrowser
+from typing import List
 from typing import Optional
+from webbrowser import open
 
 import pyqrcode
-import pytest
 from wand.drawing import Drawing
 from wand.image import Image
 
@@ -75,14 +76,15 @@ def open_image(path: str) -> Optional[None]:
     :return: None
     """
     image_viewer_command = \
-    {'linux': 'xdg-open', 'win32': 'explorer', 'darwin': 'open'}[sys.platform]
+        {'linux': 'xdg-open', 'win32': 'explorer', 'darwin': 'open'}[
+            sys.platform]
     subprocess.run([image_viewer_command, path])
 
 
-def copyToClipBoard(text):
+def copy_to_clipboard(text: str) -> Optional[None]:
     """
-    Copies text to system clipboard
-    :param text:
+    Copies the given text to the system clipboard.
+    :param text: The text to be copied to the clipboard.
     :return: None
     """
     command = 'echo | set /p nul=' + text.strip() + '| clip'
@@ -104,97 +106,107 @@ def ensure_exists(path: str) -> None:
                 raise
 
 
-def cleanTargetDir(_firstId=args.firstID, _lastId=args.lastID):
+def clean_target_dir(first_id: int, last_id: int) -> None:
     """
-    Remove old folder and create a clean one
-    :param _firstId:
-    :param _lastId:
-    :return: None
+    Remove the directory with the specified name and create a new, empty one in its place.
+
+    Parameters:
+    - first_id: The first ID of the range of IDs for which the directory should be created.
+    - last_id: The last ID of the range of IDs for which the directory should be created.
+
+    Returns:
+    - None
     """
+    dir_name = f"{first_id}-{last_id}"
+    if os.path.exists(dir_name):
+        raise OSError(f"Directory '{dir_name}' already exists")
     try:
-        shutil.rmtree(f"{_firstId}-{_lastId}")
+        shutil.rmtree(dir_name)
     except OSError as e:
-        pass
-    os.mkdir(f"{_firstId}-{_lastId}")
-    os.chdir(f"{_firstId}-{_lastId}")
+        if e.errno != errno.ENOENT:
+            raise
+    os.makedirs(dir_name)
+    os.chdir(dir_name)
 
 
-def generateQRcode(id="1"):
+def generate_qr_code(id: str = "1") -> Optional[str]:
     """
-    Generates webhook Urls and QR codes for a given ID.
-    Returns ID with padded zeros as paddedID
-    :param id:
-    :return: paddedid
+    Generates QR codes for webhook URLs for a given ID. The ID is padded with zeros to 5 digits.
+    :param id: The ID to use in the webhook URLs and QR codes.
+    :return: The padded ID.
     """
-    paddedid = str(id).rjust(5, '0')
-    url_in = f"https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush?apikey={args.apikey}&deviceNames=GeoBatteryBot&text=battery%3D%3A%3D{paddedid}%3D%3A%3DIn"
-    url_out = f"https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush?apikey={args.apikey}&deviceNames=GeoBatteryBot&text=battery%3D%3A%3D{paddedid}%3D%3A%3DOut"
-    In_temp = pyqrcode.create(url_in)
-    print(f"Generating {paddedid}..")
-    with open(f'{paddedid}_In.png', 'wb') as f:
-        In_temp.png(f, scale=10)
-    Out_temp = pyqrcode.create(url_out)
-    with open(f'{paddedid}_Out.png', 'wb') as f:
-        Out_temp.png(f, scale=10)
-    return paddedid
+    padded_id = id.rjust(5, '0')
+    url_in = f"https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush?" \
+             f"apikey={args.apikey}&deviceNames=GeoBatteryBot&text=" \
+             f"battery%3D%3A%3D{padded_id}%3D%3A%3DIn"
+    url_out = f"https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush?" \
+              f"apikey={args.apikey}&deviceNames=GeoBatteryBot&text=" \
+              f"battery%3D%3A%3D{padded_id}%3D%3A%3DOut"
+    qr_code_in = pyqrcode.create(url_in)
+    print(f"Generating {padded_id}..")
+    with open(f'{padded_id}_In.png', 'wb') as f:
+        qr_code_in.png(f, scale=10)
+    qr_code_out = pyqrcode.create(url_out)
+    with open(f'{padded_id}_Out.png', 'wb') as f:
+        qr_code_out.png(f, scale=10)
+    return padded_id
 
 
-def labelQRcode(images, _paddedID, state):
+def label_qr_code(padded_id: str, state: str) -> Optional[None]:
     """
-    Labels QR code images with their ID and state and adds a border
-    :param images:
-    :param _paddedID:
-    :param state:
+    Labels QR code images with their ID and state, and adds a border to the images.
+    :param padded_id: The padded ID to be used for labeling the images.
+    :param state: The state to be used for labeling the images.
     :return: None
     """
-    tempFile = f'{_paddedID}_{state}.png'
-    QRin = Image(filename=tempFile)
+    temp_file = f'{padded_id}_{state}.png'
+    qr_in = Image(filename=temp_file)
     with Drawing() as draw:
         draw.font_size = 45
         draw.font_weight = 700
-        draw.text(240, 32, f'{_paddedID} - Check {state}')
-        draw(QRin)
-        QRin.border('White', int(5), int(20))
-        QRin.save(filename=tempFile)
+        draw.text(240, 32, f'{padded_id} - Check {state}')
+        draw(qr_in)
+        qr_in.border('White', int(5), int(20))
+        qr_in.save(filename=temp_file)
 
 
-def compositeV(images, Id):
+def composite_v(images: List[str], id: str) -> Optional[str]:
     """
-    Merges In and Out QR codes into single image
-    :param images:
-    :param Id:
-    :return: {Id}.png
+    Merges In and Out QR code images into a single image.
+    :param images: The QR code images to be merged.
+    :param id: The ID to be used for the merged image.
+    :return: The file path of the merged image.
     """
     with Image() as output:
         output.blank(1530, 780)
-        InImage = Image(filename=f'{Id}_In.png')
-        OutImage = Image(filename=f'{Id}_Out.png')
-        output.composite(InImage, 0, 15)
-        output.composite(OutImage, 760, 15)
+        in_image = Image(filename=f'{id}_In.png')
+        out_image = Image(filename=f'{id}_Out.png')
+        output.composite(in_image, 0, 15)
+        output.composite(out_image, 760, 15)
         output.rotate(270)
-        output.save(filename=f'{Id}.png')
-        return (f'{Id}.png')
+        output.save(filename=f'{id}.png')
+        return f'{id}.png'
 
 
-def compositeHz(images):
+def composite_hz(images: List[str]) -> Optional[str]:
     """
-    Merges all QR pairs into single image
-    :param images:
-    :return: _finalpath
+    Merges all QR code image pairs into a single image.
+    :param images: The QR code image pairs to be merged.
+    :return: The file path of the merged image.
     """
     print(f'Using images: {images}')
     with Image() as output:
         w = 5
         count = len(images)
         output.blank(780 * count, 1520)
-        for each in range(count):
-            eachImage = Image(filename=images[each])
-            output.composite(eachImage, w, 5)
-            w = w + (eachImage.width + 50)
-        _finalpath = f'{args.output}\\final{args.firstID}-{args.lastID}.png'
-        ensure_exists(_finalpath)
-        output.save(filename=_finalpath)
-        return (_finalpath)
+        for i in range(count):
+            each_image = Image(filename=images[i])
+            output.composite(each_image, w, 5)
+            w = w + (each_image.width + 50)
+        final_path = f'{args.output}\\final{args.firstID}-{args.lastID}.png'
+        ensure_exists(final_path)
+        output.save(filename=final_path)
+        return final_path
 
 
 # content of test_class.py
@@ -214,17 +226,19 @@ def main(FirstID, LastID):
     """
     TestClass.test_one(FirstID)
     TestClass.test_two(FirstID, LastID)
-    cleanTargetDir(FirstID, LastID)
+    clean_target_dir(FirstID, LastID)
     images = []
 
     for each in range(FirstID, LastID + 1):
-        paddedId = generateQRcode(each)
-        labelQRcode(images, paddedId, 'In')
-        labelQRcode(images, paddedId, 'Out')
-        images.append(compositeV(images, paddedId))
-    finalPath = compositeHz(images)
-    if args.show: open_image(finalPath)
-    if args.clip: copyToClipBoard(finalPath)
+        paddedId = generate_qr_code(each)
+        label_qr_code(paddedId, 'In')
+        label_qr_code(paddedId, 'Out')
+        images.append(composite_v(images, paddedId))
+    finalPath = composite_hz(images)
+    if args.show:
+        open_image(finalPath)
+    if args.clip:
+        copy_to_clipboard(finalPath)
     os.chdir('../')
     if args.nocleanup:
         try:
@@ -236,10 +250,12 @@ def main(FirstID, LastID):
 
         nowtime = time.strftime("%m-%d-%H00")
         webbrowser.open(
-            f"http://3.134.3.199:9191/mqtt?topic=shop/batterytracker/generator&message={args.firstID}-{args.lastID} at {nowtime}")
+                f"http://3.134.3.199:9191/mqtt?topic=shop/batterytracker/generator&message={args.firstID}-{args.lastID} at {nowtime}")
 
 
 if __name__ == "__main__":
-    if not args.firstID: args.firstID = int(input("Enter your First ID: "))
-    if not args.lastID: args.lastID = int(input("Enter your Last ID: "))
-    main(first, last)
+    if not args.firstID:
+        args.firstID = int(input("Enter your First ID: "))
+    if not args.lastID:
+        args.lastID = int(input("Enter your Last ID: "))
+    main(args.firstID, args.lastID)
