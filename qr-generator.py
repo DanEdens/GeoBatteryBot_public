@@ -4,17 +4,16 @@ import os
 import shutil
 import subprocess
 import sys
-import pytest
 from webbrowser import open
-
+from typing import Optional
 
 import pyqrcode
+import pytest
 from wand.drawing import Drawing
 from wand.image import Image
 
 version = 1.1
 dir_path = os.path.dirname(os.path.realpath(__file__))
-
 
 helpMsg = f""
 f"\n    GeoBatteryBot - Version: {version}\n"
@@ -28,12 +27,14 @@ parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter
         )
 
-parser.add_argument('-F', '--firstid', default=os.environ.get("BATTERYBOT_FIRSTID", False),
+parser.add_argument('-F', '--firstid',
+                    default=os.environ.get("BATTERYBOT_FIRSTID", False),
                     type=int,
                     metavar='',
                     help="First Battery ID to generate")
 
-parser.add_argument('-L', '--lastid', default=os.environ.get("BATTERYBOT_LASTID", False),
+parser.add_argument('-L', '--lastid',
+                    default=os.environ.get("BATTERYBOT_LASTID", False),
                     type=int,
                     metavar='',
                     help="Last Battery ID to generate")
@@ -56,7 +57,6 @@ parser.add_argument('--nocleanup', action='store_false',
                     default=os.environ.get("BATTERYBOT_CLEANUP", True),
                     help='Prevents Clean up of temp files')
 
-
 parser.add_argument('-c', '--clip', action='store_true',
                     default=os.environ.get("BATTERYBOT_CLIP", False),
                     help='Copy final filepath to clipboard for easy importing')
@@ -67,16 +67,17 @@ parser.add_argument('--apikey',
 
 args = parser.parse_args()
 
-def openImage(path):
+
+def open_image(path: str) -> Optional[None]:
     """
-    Opens Image with default system viewer 
-    :param path:
+    Opens the image at the given file path using the default system image viewer.
+    :param path: The file path of the image to be opened.
     :return: None
     """
-    imageViewerFromCommandLine = {'linux':'xdg-open',
-                                  'win32':'explorer',
-                                  'darwin':'open'}[sys.platform]
-    subprocess.run([imageViewerFromCommandLine, path])
+    image_viewer_command = \
+    {'linux': 'xdg-open', 'win32': 'explorer', 'darwin': 'open'}[sys.platform]
+    subprocess.run([image_viewer_command, path])
+
 
 def copyToClipBoard(text):
     """
@@ -87,18 +88,21 @@ def copyToClipBoard(text):
     command = 'echo | set /p nul=' + text.strip() + '| clip'
     os.system(command)
 
-def ensure_exists(path):
+
+def ensure_exists(path: str) -> None:
+    """Create the directory path if it does not exist.
+
+    Parameters:
+    path (str): The directory path to create.
     """
-    Creates the directory path to {path} if it does not exist
-    :param path:
-    :return: None
-    """
-    if not os.path.exists(os.path.dirname(path)):
+    dirname = os.path.dirname(path)
+    if not os.path.exists(dirname):
         try:
-            os.makedirs(os.path.dirname(path))
-        except OSError as exc:  # Guard against race condition
+            os.makedirs(dirname)
+        except OSError as exc:
             if exc.errno != errno.EEXIST:
                 raise
+
 
 def cleanTargetDir(_firstId=args.firstID, _lastId=args.lastID):
     """
@@ -114,7 +118,8 @@ def cleanTargetDir(_firstId=args.firstID, _lastId=args.lastID):
     os.mkdir(f"{_firstId}-{_lastId}")
     os.chdir(f"{_firstId}-{_lastId}")
 
-def generateQRcode(id = "1"):
+
+def generateQRcode(id="1"):
     """
     Generates webhook Urls and QR codes for a given ID.
     Returns ID with padded zeros as paddedID
@@ -143,7 +148,7 @@ def labelQRcode(images, _paddedID, state):
     :return: None
     """
     tempFile = f'{_paddedID}_{state}.png'
-    QRin = Image(filename = tempFile)
+    QRin = Image(filename=tempFile)
     with Drawing() as draw:
         draw.font_size = 45
         draw.font_weight = 700
@@ -151,6 +156,7 @@ def labelQRcode(images, _paddedID, state):
         draw(QRin)
         QRin.border('White', int(5), int(20))
         QRin.save(filename=tempFile)
+
 
 def compositeV(images, Id):
     """
@@ -167,7 +173,8 @@ def compositeV(images, Id):
         output.composite(OutImage, 760, 15)
         output.rotate(270)
         output.save(filename=f'{Id}.png')
-        return(f'{Id}.png')
+        return (f'{Id}.png')
+
 
 def compositeHz(images):
     """
@@ -179,15 +186,15 @@ def compositeHz(images):
     with Image() as output:
         w = 5
         count = len(images)
-        output.blank(780*count, 1520)
+        output.blank(780 * count, 1520)
         for each in range(count):
             eachImage = Image(filename=images[each])
             output.composite(eachImage, w, 5)
             w = w + (eachImage.width + 50)
-        _finalpath=f'{args.output}\\final{args.firstID}-{args.lastID}.png'
+        _finalpath = f'{args.output}\\final{args.firstID}-{args.lastID}.png'
         ensure_exists(_finalpath)
         output.save(filename=_finalpath)
-        return(_finalpath)
+        return (_finalpath)
 
 
 # content of test_class.py
@@ -210,13 +217,13 @@ def main(FirstID, LastID):
     cleanTargetDir(FirstID, LastID)
     images = []
 
-    for each in range(FirstID, LastID+1):
+    for each in range(FirstID, LastID + 1):
         paddedId = generateQRcode(each)
         labelQRcode(images, paddedId, 'In')
         labelQRcode(images, paddedId, 'Out')
         images.append(compositeV(images, paddedId))
     finalPath = compositeHz(images)
-    if args.show: openImage(finalPath)
+    if args.show: open_image(finalPath)
     if args.clip: copyToClipBoard(finalPath)
     os.chdir('../')
     if args.nocleanup:
@@ -226,10 +233,10 @@ def main(FirstID, LastID):
             pass
     if args.log:
         import time
+
         nowtime = time.strftime("%m-%d-%H00")
-        webbrowser.open(f"http://3.134.3.199:9191/mqtt?topic=shop/batterytracker/generator&message={args.firstID}-{args.lastID} at {nowtime}")
-
-
+        webbrowser.open(
+            f"http://3.134.3.199:9191/mqtt?topic=shop/batterytracker/generator&message={args.firstID}-{args.lastID} at {nowtime}")
 
 
 if __name__ == "__main__":
