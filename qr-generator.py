@@ -88,7 +88,7 @@ def copy_to_clipboard(text: str) -> Optional[None]:
     :return: None
     """
     command = 'echo | set /p nul=' + text.strip() + '| clip'
-    os.system(command)
+    subprocess.call(command, shell=False)
 
 
 def ensure_exists(path: str) -> None:
